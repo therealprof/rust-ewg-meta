@@ -22,20 +22,26 @@ def get_last_meeting_date():
 def main():
     # Deduce last meeting date
     date = get_last_meeting_date()
+    #date = datetime.strptime("2019-03-19", "%Y-%m-%d")
     print("Last meeting date", date.strftime("%Y-%m-%d"))
 
     # Fetch meeting logs
     url = "https://mozilla.logbot.info/rust-embedded/%s/raw" % date.strftime("%Y%m%d")
     logs_data = fetch_url(url)
 
-    ends = ["thanks everyone for attending", "and see you next week"]
+    leaders = ["japaric", "jamesmunns"]
+    starts = ["let's start this meeting", "lets get this started", "let's get started"]
+    ends = ["thanks everyone for attending", "and see you next week", "thanks to everyone for attending", "see you all next week"]
 
     rec = False
     meeting_lines = []
     for line in logs_data.split("\n"):
         if len(line) == 0:
             continue
-        if "<japaric>" in line and "let's start this meeting" in line:
+        is_leader = any(["<"+nick+">" in line for nick in leaders])
+        is_start = any([s.lower() in line.lower() for s in starts])
+        is_end = any([s.lower() in line.lower() for s in ends])
+        if is_leader and is_start:
             rec = True
 
         if rec:
@@ -46,7 +52,7 @@ def main():
             if m:
                 time_str = m.group(1)
                 tm = datetime.strptime(time_str, "%I:%M:%S")
-                hour = tm.hour + 12 + 1  # log timestamps are in 12-hour format and UTC+0 timezone, use CET instead
+                hour = (tm.hour + 12 + 1) % 24  # log timestamps are in 12-hour format and UTC+0 timezone, use CET instead
                 full_dt = datetime(year=date.year, month=date.month, day=date.day, hour=hour, minute=tm.minute, second=tm.second)
                 time_str = full_dt.strftime("%Y-%m-%d %H:%M:%S")
                 nick = m.group(2)
@@ -56,11 +62,9 @@ def main():
             else:
                 print("Unexpected line: '%s'" % line)
 
-        if "<japaric>" in line:
-            for s in ends:
-                if s in line.lower():
-                    rec = False
-                    break
+        if is_leader and is_end:
+            rec = False
+            break
 
     if rec:
         print("Can't find meeting ending!")
